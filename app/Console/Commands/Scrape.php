@@ -43,6 +43,8 @@ class Scrape extends Command
             $categoryLink = $this->sanitizeData($category->getElementsByTagName('a')->item(0)->getAttribute('href'));
             $this->categories[$categoryName] = $categoryLink;
             $this->newLine();
+            echo "Categories finished. Total: " . count($this->categories);
+            $this->newLine();
         }
 
         $this->getCategoryPages();
@@ -84,7 +86,8 @@ class Scrape extends Command
                     $this->newLine();
                     foreach ($products as $product) {
                         $productName = $product->nodeValue;
-                        echo $productName;
+                        echo $productName; //TODO Continue here!
+                        var_dump($product);
                         $this->newLine();
                         dd();
                     }
