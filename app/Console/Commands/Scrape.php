@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 class Scrape extends Command
 {
 
-    protected $signature = 'scrape:test';
+    protected $signature = 'scrape:universal';
     protected $description = 'Srape a test website.';
 
     /**
@@ -18,8 +18,11 @@ class Scrape extends Command
      */
     protected $path = 'universal';
     protected $siteUrl = 'https://www.tehnomanija.rs';
+
     protected $totalCategories = [];
     protected $categories = [];
+    protected $categoryXpath = [];
+    protected $products = [];
 
 
 
@@ -64,6 +67,49 @@ class Scrape extends Command
         return trim($data);
     }
 
+    private function setXpathData(array $categoryXpath) {
+        foreach ($categoryXpath as $key => $value) {
+            $this->categoryXpath[$key] = $value;
+        }
+    }
+
+    private function getProductDataFromPaginationByXpath($pageURL) { //TODO go through all products on a pagination page & fetch data about products
+        $xpath = $this->getXPath($pageURL);
+
+        //fetch singular product data via xpath k=>v
+        foreach ($this->categoryXpath as $key => $value) {
+            $product[$key] = $xpath->query($value);
+            echo "$key count: " . count($product[$key]);
+            $this->newLine();
+        }
+
+        //go through each product fetching each xpath element
+        foreach ($product['productName'] as $item => $value) {
+            $productItem = [];
+            try {
+                echo $value->nodeValue;
+
+                foreach ($this->categoryXpath as $k => $v) {
+                    echo $k . " => " . $product[$k][$item]->nodeValue;
+                    $productItem[$k] = $product[$k][$item]->nodeValue;
+                }
+                $this->newLine();
+                $this->products[] = $productItem;
+            } catch (\RuntimeException $exception) {
+                Log::error("Error parsing data.");
+                echo "ERROR";
+            }
+        }
+
+        Log::info("Product data from pagination on page finished. Moving on.");
+        $this->newLine();
+        echo "Product data from pagination on page finished. Moving on.";
+        $this->newLine();
+        echo "Finished page";
+        Log::info("Category page finished.");
+        return $product['productName'];
+    }
+
     protected function getCategoryPages() {
 
         //define a category page URL suffix with numbers for pagination
@@ -78,19 +124,7 @@ class Scrape extends Command
                     $categoryURL = $this->siteUrl . $value;
                     echo "Category URL first page: $categoryURL";
                     Log::info("Started: $category -> $categoryURL");
-
-                    $xpath = $this->getXPath($categoryURL);
-                    // cx-generic-link - tag name, bottom-category-name - class name defined by @
-                    $products = $xpath->query("//div[contains(@class, 'product')]");
-                    echo "Product count: " . count($products);
-                    $this->newLine();
-                    foreach ($products as $product) {
-                        $productName = $product->nodeValue;
-                        echo $productName; //TODO Continue here!
-                        var_dump($product);
-                        $this->newLine();
-                        dd();
-                    }
+                    $products = $this->getProductDataFromPaginationByXpath($categoryURL);
                     echo "Finished first category page";
                     Log::info("First category page finished.");
 
@@ -106,11 +140,7 @@ class Scrape extends Command
                     echo "Loading page $urlIncrement: $categoryURL";
                     $this->newLine();
 
-                    $xpath = $this->getXPath($categoryURL);
-                    // cx-generic-link - tag name, bottom-category-name - class name defined by @
-                    $products = $xpath->query("//a[contains(@class, 'product-carousel--href')]");
-                    echo "Product count: " . count($products);
-                    $this->newLine();
+                    $products = $this->getProductDataFromPaginationByXpath($categoryURL);
 
                     if (count($products) == 0) {
                         Log::info("No products found on this page. Skipping category.");
@@ -118,24 +148,32 @@ class Scrape extends Command
                         break;
                     }
 
-                    foreach ($products as $product) {
-                        $productName = $product->nodeValue;
-                        echo $productName;
-                        $this->newLine();
-                    }
+//                    foreach ($products as $product => $productValue) {
+//                        $productName = $productValue->nodeValue;
+//                        $this->newLine();
+//                        $discount = $discounts[$product]->nodeValue;
+//                        $price = $prices[$product]->nodeValue;
+//                        echo "$productName: $price - discount: $discount";
+//                        $this->newLine();
+//                    }
                 }
             }
             $this->newLine();
-            echo "End FOR loop. Category finished.";
-            $this->newLine();
             Log::info("End of category $category");
-            dd("End of category $category");
         }
     }
 
     public function handle(): bool
     {
+        $xpaths = [
+            'productName' => '//div[@class="product"]//a[@class="product-carousel--href"]',
+//            'productDiscount' => '//div[@class="product"]//span[@class="product-carousel--discount"]',
+            'productPrice' => '//div[@class="product"]//div[@class="product-carousel--info-newprice"]',
+        ];
+        $this->setXpathData($xpaths);
+
         $this->getCategories();
+        file_put_contents('products.txt', serialize($this->products));
         return true;
     }
 
